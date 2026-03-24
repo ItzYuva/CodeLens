@@ -17,7 +17,7 @@ TSX_LANGUAGE = Language(tstypescript.language_tsx())
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv",
     "dist", "build", ".next", ".nuxt", "coverage", ".idea",
-    ".vscode", ".DS_Store",
+    ".vscode", ".DS_Store", "test", "tests", "__tests__", "e2e",
 }
 
 RAW_READ_FILES = {

@@ -28,11 +28,9 @@ async def query_websocket(websocket: WebSocket, repo_id: str):
                 continue
 
             try:
-                async for event in asyncio.wait_for(
-                    _consume_pipeline(query, repo.name, repo.commit_hash, websocket),
-                    timeout=QUERY_TIMEOUT,
-                ):
-                    pass  # _consume_pipeline sends messages directly
+                async with asyncio.timeout(QUERY_TIMEOUT):
+                    async for event in _consume_pipeline(query, repo.name, repo.commit_hash, websocket):
+                        pass  # _consume_pipeline sends messages directly
             except asyncio.TimeoutError:
                 await websocket.send_json({
                     "type": "error",

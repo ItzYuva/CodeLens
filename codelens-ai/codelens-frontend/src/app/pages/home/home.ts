@@ -35,6 +35,7 @@ export class Home implements OnInit {
 
   ngOnInit(): void {
     this.loadRepos();
+    this.resumeInProgressRepo();
   }
 
   get isValid(): boolean {
@@ -118,6 +119,21 @@ export class Home implements OnInit {
   private loadRepos(): void {
     this.api.listRepos().subscribe({
       next: (repos) => (this.recentRepos = repos),
+    });
+  }
+
+  /** On page load, check if any repo is currently indexing and resume the progress view. */
+  private resumeInProgressRepo(): void {
+    this.api.listRepos().subscribe({
+      next: (repos) => {
+        const inProgress = repos.find(
+          (r) => !['ready', 'failed'].includes(r.status),
+        );
+        if (inProgress) {
+          this.indexingRepoId = inProgress.repo_id;
+          this.indexingRepoName = inProgress.name;
+        }
+      },
     });
   }
 }

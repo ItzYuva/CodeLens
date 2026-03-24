@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="CodeLens AI",
+    title="CodeLens",
     description="Chat with any GitHub repository using Vectorless RAG",
     version="1.0.0",
     lifespan=lifespan,

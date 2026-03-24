@@ -7,7 +7,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 REPO_CLONE_PATH: str = os.getenv("REPO_CLONE_PATH", str(BASE_DIR / "data" / "repos"))
 TREE_STORAGE_PATH: str = os.getenv("TREE_STORAGE_PATH", str(BASE_DIR / "data" / "trees"))
 MAX_REPO_SIZE_MB: int = int(os.getenv("MAX_REPO_SIZE_MB", "100"))

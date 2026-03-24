@@ -29,7 +29,7 @@ def _strip_code_fences(text: str) -> str:
 
 # ── Trivial-node auto-summary (no API call) ──────────────────────────
 
-_TRIVIAL_LINE_THRESHOLD = 5  # functions ≤ this many lines skip the API
+_TRIVIAL_LINE_THRESHOLD = 15  # functions ≤ this many lines skip the API
 
 
 def _can_auto_summarize(node: TreeNode) -> bool:
@@ -154,7 +154,7 @@ def _fallback_summary(node: TreeNode) -> NodeSummary:
 
 # ── Batch prompt for multiple leaf nodes at once ─────────────────────
 
-_BATCH_SIZE = 6  # summarize up to 6 leaf nodes per API call
+_BATCH_SIZE = 20  # summarize up to 20 leaf nodes per API call
 
 
 def _build_batch_prompt(nodes: List[TreeNode]) -> str:

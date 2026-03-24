@@ -31,7 +31,7 @@ def _build_answer_prompt(query: str, nodes: List[TreeNode], repo_name: str) -> s
 
     context = "\n---\n\n".join(context_parts)
 
-    return f"""You are CodeLens AI, an expert code assistant helping users understand a GitHub repository called "{repo_name}".
+    return f"""You are CodeLens, an expert code assistant helping users understand a GitHub repository called "{repo_name}".
 
 Answer the user's question using ONLY the provided code context. Be accurate and specific.
 
