@@ -1,0 +1,35 @@
+# Data
+codelens-ai/data/repos/
+codelens-ai/data/trees/
+codelens-ai/data/codelens.db
+
+# Secrets
+codelens-ai/.env
+
+# Python
+**/__pycache__/
+**/*.pyc
+codelens-ai/.venv/
+codelens-ai/.pytest_cache/
+**/*.egg-info/
+
+# Node / Angular
+codelens-ai/codelens-frontend/node_modules/
+codelens-ai/codelens-frontend/dist/
+codelens-ai/codelens-frontend/.angular/
+
+# IDE
+.idea/
+.vscode/
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug tools & Claude
+.claude/
+codelens-ai/backend_logs.txt
+codelens-ai/test_api.py
+codelens-ai/get_logs.py
+codelens-ai/check_backend.py
