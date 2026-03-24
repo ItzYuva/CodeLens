@@ -168,7 +168,7 @@ async def summarize_tree(
             on_progress(counter[0], total)
 
         # Rate-limit delay
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.02)
 
     await _walk(tree)
     return tree

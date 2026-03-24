@@ -6,9 +6,36 @@
       <p class="hero-subtitle">Chat with any GitHub repository</p>
     </div>
 
-    <!-- Input -->
     @if (!indexingRepoId) {
-      <app-repo-input (submitted)="onSubmit($event)" />
+      <!-- Input -->
+      <div class="input-wrapper">
+        <div class="input-group">
+          <input
+            type="text"
+            [(ngModel)]="url"
+            placeholder="https://github.com/user/repo"
+            (keydown.enter)="submit()"
+            [disabled]="isLoading"
+            class="repo-input"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            (click)="submit()"
+            [disabled]="!isValid || isLoading"
+            class="submit-btn"
+          >
+            @if (isLoading) {
+              <span class="spinner"></span>
+            } @else {
+              Analyze
+            }
+          </button>
+        </div>
+        @if (url.length > 0 && !isValid) {
+          <p class="validation-hint">Enter a valid GitHub repository URL</p>
+        }
+      </div>
 
       @if (errorMessage) {
         <p class="error-message">{{ errorMessage }}</p>
@@ -25,42 +52,42 @@
           }
         </div>
       </div>
+
+      <!-- Recent repos -->
+      @if (recentRepos.length > 0) {
+        <div class="recent-section">
+          <p class="section-divider">Recently analyzed</p>
+          <div class="recent-list">
+            @for (repo of recentRepos; track repo.repo_id) {
+              <button
+                class="recent-item"
+                [disabled]="repo.status !== 'ready'"
+                (click)="goToChat(repo.repo_id)"
+              >
+                <span class="recent-name">{{ repo.name }}</span>
+                <span class="recent-status" [class]="'status-' + repo.status">
+                  @if (repo.status === 'ready') {
+                    Ready
+                  } @else if (repo.status === 'failed') {
+                    Failed
+                  } @else {
+                    Indexing...
+                  }
+                </span>
+                <span class="recent-time">{{ getTimeAgo(repo.created_at) }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
     } @else {
-      <!-- Indexing -->
+      <!-- Indexing Progress -->
       <app-indexing-progress
-        [repoId]="indexingRepoId"
+        [repoId]="indexingRepoId!"
         [repoName]="indexingRepoName"
         (ready)="onReady()"
         (cancelled)="onCancelled()"
       />
-    }
-
-    <!-- Recent repos -->
-    @if (recentRepos.length > 0 && !indexingRepoId) {
-      <div class="recent-section">
-        <p class="section-divider">Recently analyzed</p>
-        <div class="recent-list">
-          @for (repo of recentRepos; track repo.repo_id) {
-            <button
-              class="recent-item"
-              [disabled]="repo.status !== 'ready'"
-              (click)="goToChat(repo.repo_id)"
-            >
-              <span class="recent-name">{{ repo.name }}</span>
-              <span class="recent-status" [class]="'status-' + repo.status">
-                @if (repo.status === 'ready') {
-                  Ready
-                } @else if (repo.status === 'failed') {
-                  Failed
-                } @else {
-                  Indexing...
-                }
-              </span>
-              <span class="recent-time">{{ getTimeAgo(repo.created_at) }}</span>
-            </button>
-          }
-        </div>
-      </div>
     }
   </div>
 </div>

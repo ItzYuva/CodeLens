@@ -55,7 +55,10 @@ export class IndexingProgress implements OnInit, OnDestroy {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
     }
-    this.cancelled.emit();
+    this.api.deleteRepo(this.repoId).subscribe({
+      next: () => this.cancelled.emit(),
+      error: () => this.cancelled.emit(),
+    });
   }
 
   retry(): void {

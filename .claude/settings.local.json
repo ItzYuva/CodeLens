@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(PYTHONPATH=. .venv/Scripts/python -m pytest backend/tests/ -v)",
+      "Bash(PYTHONPATH=. .venv/Scripts/python -c \":*)",
+      "Bash(npx @angular/cli@latest new codelens-frontend --routing --style=css --ssr=false --skip-git --skip-tests)",
+      "Bash(npm install:*)",
+      "Bash(npx ng:*)",
+      "Bash(PYTHONPATH=. .venv/Scripts/python -m pytest backend/tests/ -q)",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(curl -s -X POST http://localhost:8000/api/index -H \"Content-Type: application/json\" -d '{\"\"repo_url\"\": \"\"https://github.com/pallets/flask\"\"}')",
+      "Bash(curl -s http://localhost:8000/api/status/f90b65d1-4cb3-4e42-912e-dcfec77481c0)",
+      "Bash(curl -s -I -X OPTIONS http://localhost:8000/api/index -H \"Origin: http://localhost:4200\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\")",
+      "Bash(curl -s http://localhost:8000/api/repos)",
+      "Bash(curl -s -X POST http://localhost:8000/api/index -H \"Content-Type: application/json\" -d '{\"\"repo_url\"\": \"\"https://github.com/ItzYuva/CodeLens\"\"}')",
+      "Bash(curl -s http://localhost:4200/api/health)",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/repos/da9c49b6-9f33-458b-b1e5-a2b42c27471f)",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/repos/f90b65d1-4cb3-4e42-912e-dcfec77481c0)",
+      "Bash(python -m json.tool)"
+    ]
+  }
+}

@@ -1,25 +1,25 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
-import { RepoInput } from '../../components/repo-input/repo-input';
 import { IndexingProgress } from '../../components/indexing-progress/indexing-progress';
 import { RepoListItem } from '../../models/types';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RepoInput, IndexingProgress],
+  imports: [CommonModule, FormsModule, IndexingProgress],
   templateUrl: './home.html',
   styleUrl: './home.css',
 })
 export class Home implements OnInit {
-  @ViewChild(RepoInput) repoInput!: RepoInput;
-
   recentRepos: RepoListItem[] = [];
   indexingRepoId: string | null = null;
   indexingRepoName = '';
   errorMessage = '';
+  url = '';
+  isLoading = false;
 
   examples = [
     { name: 'pallets/flask', url: 'https://github.com/pallets/flask' },
@@ -36,22 +36,31 @@ export class Home implements OnInit {
     this.loadRepos();
   }
 
-  onSubmit(url: string): void {
+  get isValid(): boolean {
+    return /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/.test(
+      this.url.trim().replace(/\.git$/, '')
+    );
+  }
+
+  submit(): void {
+    if (!this.isValid || this.isLoading) return;
+    this.isLoading = true;
     this.errorMessage = '';
-    this.api.indexRepo(url).subscribe({
+
+    this.api.indexRepo(this.url.trim()).subscribe({
       next: (res) => {
+        this.isLoading = false;
         if (res.status === 'ready') {
           this.router.navigate(['/chat', res.repo_id]);
         } else {
           this.indexingRepoId = res.repo_id;
           this.indexingRepoName = res.name;
         }
-        this.repoInput?.reset();
+        this.loadRepos();
       },
       error: (err) => {
-        this.errorMessage =
-          err.error?.detail || 'Failed to start indexing';
-        this.repoInput?.reset();
+        this.isLoading = false;
+        this.errorMessage = err.error?.detail || 'Failed to start indexing';
       },
     });
   }
@@ -65,10 +74,12 @@ export class Home implements OnInit {
   onCancelled(): void {
     this.indexingRepoId = null;
     this.indexingRepoName = '';
+    this.url = '';
+    this.loadRepos();
   }
 
-  fillExample(url: string): void {
-    this.repoInput?.fillExample(url);
+  fillExample(exUrl: string): void {
+    this.url = exUrl;
   }
 
   goToChat(repoId: string): void {
