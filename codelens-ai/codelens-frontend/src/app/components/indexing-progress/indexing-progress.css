@@ -7,11 +7,24 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .progress-title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin: 0 0 1rem;
+  margin: 0;
+}
+
+.progress-elapsed {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-bar-track {
@@ -29,11 +42,22 @@
   transition: width 0.5s ease;
 }
 
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0.375rem 0 1rem;
+}
+
+.progress-action {
+  font-size: 0.8125rem;
+  color: var(--color-accent-secondary);
+}
+
 .progress-pct {
   font-size: 0.8125rem;
   color: var(--color-text-muted);
-  margin: 0.375rem 0 1rem;
-  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .steps-list {

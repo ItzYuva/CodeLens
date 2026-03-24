@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+import traceback
 
 from backend.core.cloner import cleanup_repo, clone_repo, _repo_name_from_url
 from backend.core.parser import count_nodes, parse_repo
@@ -21,18 +22,49 @@ def _check_cancelled(repo_id: str) -> None:
 
 logger = logging.getLogger(__name__)
 
+# Cache Redis availability so we don't block on timeout every call
+_redis_status: bool | None = None
+
+
+def _validate_gemini_key() -> None:
+    """Fast-fail if the Gemini API key is missing or obviously bad."""
+    from backend.config import GEMINI_API_KEY
+    if not GEMINI_API_KEY or GEMINI_API_KEY.strip() == "":
+        raise RuntimeError("GEMINI_API_KEY is not set in .env — cannot summarize")
+    # Quick smoke-test: try a tiny request
+    try:
+        from backend.core.summarizer import _get_client
+        from backend.config import GEMINI_MODEL
+        from google import genai
+        client = _get_client()
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents="Respond with OK",
+            config=genai.types.GenerateContentConfig(max_output_tokens=5),
+        )
+        if not response.text:
+            raise RuntimeError("Gemini returned empty response")
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(f"Gemini API key validation failed: {e}")
+
 
 def _redis_available() -> bool:
-    """Check if Redis is reachable."""
+    """Check if Redis is reachable (cached after first check)."""
+    global _redis_status
+    if _redis_status is not None:
+        return _redis_status
     try:
         from redis import Redis
         from backend.config import REDIS_URL
         conn = Redis.from_url(REDIS_URL, socket_connect_timeout=1)
         conn.ping()
         conn.close()
-        return True
+        _redis_status = True
     except Exception:
-        return False
+        _redis_status = False
+    return _redis_status
 
 
 def _get_queue():
@@ -43,6 +75,26 @@ def _get_queue():
 
     conn = Redis.from_url(REDIS_URL)
     return Queue("codelens", connection=conn)
+
+
+def _safe_process(repo_id: str, repo_url: str) -> None:
+    """Wrapper that guarantees the repo never stays stuck in a non-terminal
+    state, no matter what goes wrong (including SystemExit, KeyboardInterrupt)."""
+    try:
+        process_indexing_job(repo_id, repo_url)
+    except BaseException as e:
+        # Catch absolutely everything so the repo never stays "stuck"
+        logger.error("Indexing thread crashed for %s: %s", repo_id, e)
+        logger.error(traceback.format_exc())
+        try:
+            repo = get_repo(repo_id)
+            if repo and repo.status not in ("ready", "failed"):
+                update_repo_status(
+                    repo_id, "failed",
+                    error_message=f"Indexing thread crashed: {e}",
+                )
+        except Exception:
+            pass  # DB itself might be broken, nothing we can do
 
 
 def enqueue_indexing(repo_id: str, repo_url: str) -> str:
@@ -64,7 +116,7 @@ def enqueue_indexing(repo_id: str, repo_url: str) -> str:
     # Fallback: run in a background thread (works on Windows without Redis)
     logger.info("Redis not available -- running indexing in background thread")
     t = threading.Thread(
-        target=process_indexing_job,
+        target=_safe_process,
         args=(repo_id, repo_url),
         daemon=True,
     )
@@ -75,6 +127,9 @@ def enqueue_indexing(repo_id: str, repo_url: str) -> str:
 def process_indexing_job(repo_id: str, repo_url: str) -> None:
     local_path = None
     try:
+        # Step 0: Validate Gemini API key before doing any work
+        _validate_gemini_key()
+
         # Step 1: Clone
         update_repo_status(repo_id, "cloning")
         local_path, commit_hash = clone_repo(repo_url)
@@ -87,7 +142,10 @@ def process_indexing_job(repo_id: str, repo_url: str) -> None:
         if check_cache(repo_name, commit_hash):
             tree_path = str(_tree_path(repo_name, commit_hash))
             update_repo_status(repo_id, "ready", tree_path=tree_path, progress=100)
-            cleanup_repo(local_path)
+            try:
+                cleanup_repo(local_path)
+            except Exception:
+                logger.warning("Cleanup failed for %s (non-fatal)", local_path)
             return
 
         # Step 2: Parse
@@ -100,13 +158,17 @@ def process_indexing_job(repo_id: str, repo_url: str) -> None:
 
         # Step 3: Summarize
         update_repo_status(repo_id, "summarizing", progress=0)
+        last_pct = [0]
 
         def on_progress(current, total):
             pct = int((current / total) * 100)
             # Check for cancellation every 5 nodes
             if current % 5 == 0:
                 _check_cancelled(repo_id)
-            update_repo_status(repo_id, "summarizing", progress=pct)
+            # Throttle DB writes: only update when percentage actually changes
+            if pct != last_pct[0]:
+                last_pct[0] = pct
+                update_repo_status(repo_id, "summarizing", progress=pct)
 
         tree = asyncio.run(summarize_tree(tree, on_progress=on_progress))
 
@@ -116,8 +178,11 @@ def process_indexing_job(repo_id: str, repo_url: str) -> None:
         tree_path = save_tree(tree, repo_name, commit_hash)
         update_repo_status(repo_id, "ready", tree_path=tree_path, progress=100)
 
-        # Cleanup
-        cleanup_repo(local_path)
+        # Cleanup (best-effort -- Windows may lock .git files)
+        try:
+            cleanup_repo(local_path)
+        except Exception:
+            logger.warning("Cleanup failed for %s (non-fatal)", local_path)
 
     except IndexingCancelled:
         logger.info("Indexing cancelled for repo %s", repo_id)
@@ -128,6 +193,7 @@ def process_indexing_job(repo_id: str, repo_url: str) -> None:
                 pass
 
     except Exception as e:
+        logger.error("Indexing failed for %s: %s", repo_id, e)
         update_repo_status(repo_id, "failed", error_message=str(e))
         if local_path:
             try:

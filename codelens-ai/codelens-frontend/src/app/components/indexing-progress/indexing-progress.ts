@@ -34,21 +34,32 @@ export class IndexingProgress implements OnInit, OnDestroy {
   failed = false;
   errorMessage = '';
   steps: IndexStep[] = [];
+  elapsed = '';
+  currentAction = '';
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private elapsedTimer: ReturnType<typeof setInterval> | null = null;
+  private startTime = Date.now();
+
+  // Stuck detection: if progress+status haven't changed for 90s, show error
+  private lastStatusKey = '';
+  private lastStatusChangeTime = Date.now();
+  private readonly STUCK_TIMEOUT_MS = 90_000;
 
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
+    this.startTime = Date.now();
+    this.lastStatusChangeTime = Date.now();
     this.resetSteps();
     this.poll();
     this.pollTimer = setInterval(() => this.poll(), 2000);
+    this.elapsedTimer = setInterval(() => this.updateElapsed(), 1000);
   }
 
   ngOnDestroy(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-    }
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.elapsedTimer) clearInterval(this.elapsedTimer);
   }
 
   cancel(): void {
@@ -62,11 +73,11 @@ export class IndexingProgress implements OnInit, OnDestroy {
   }
 
   retry(): void {
-    this.failed = false;
-    this.errorMessage = '';
-    this.resetSteps();
-    this.poll();
-    this.pollTimer = setInterval(() => this.poll(), 2000);
+    // Delete the stuck/failed repo so a fresh indexing job can start
+    this.api.deleteRepo(this.repoId).subscribe({
+      next: () => this.cancelled.emit(),
+      error: () => this.cancelled.emit(),
+    });
   }
 
   private poll(): void {
@@ -80,20 +91,61 @@ export class IndexingProgress implements OnInit, OnDestroy {
   }
 
   private handleStatus(status: RepoStatus): void {
-    this.progress = status.progress;
+    // ── Stuck detection ──────────────────────────────────────────
+    const statusKey = `${status.status}:${status.progress}`;
+    if (statusKey !== this.lastStatusKey) {
+      this.lastStatusKey = statusKey;
+      this.lastStatusChangeTime = Date.now();
+    } else if (
+      Date.now() - this.lastStatusChangeTime > this.STUCK_TIMEOUT_MS &&
+      status.status !== 'ready' &&
+      status.status !== 'failed'
+    ) {
+      this.failed = true;
+      this.errorMessage =
+        'Indexing appears stuck (no progress for 90s). Click Retry to re-queue.';
+      this.currentAction = 'Stuck';
+      if (this.pollTimer) clearInterval(this.pollTimer);
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
+      this.updateSteps(status.status, status);
+      return;
+    }
+
+    // ── Map each phase to a progress range ───────────────────────
+    if (status.status === 'queued') {
+      this.progress = 2;
+      this.currentAction = 'Waiting in queue...';
+    } else if (status.status === 'cloning') {
+      this.progress = 10;
+      this.currentAction = 'Cloning repository from GitHub...';
+    } else if (status.status === 'parsing') {
+      this.progress = 20;
+      this.currentAction = status.total_nodes > 0
+        ? `Parsed ${status.total_nodes} code nodes`
+        : 'Parsing code into AST...';
+    } else if (status.status === 'summarizing') {
+      // Summarizing maps from 25% to 95%
+      this.progress = 25 + Math.round(status.progress * 0.7);
+      this.currentAction = `Summarizing code with AI... ${status.progress}%`;
+    } else if (status.status === 'ready') {
+      this.progress = 100;
+      this.currentAction = 'Analysis complete';
+    }
 
     if (status.status === 'failed') {
       this.failed = true;
       this.errorMessage = status.error_message || 'Indexing failed';
+      this.currentAction = 'Failed';
       if (this.pollTimer) clearInterval(this.pollTimer);
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
       this.updateSteps(status.status, status);
       return;
     }
 
     if (status.status === 'ready') {
-      this.progress = 100;
       this.updateSteps('ready', status);
       if (this.pollTimer) clearInterval(this.pollTimer);
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
       setTimeout(() => this.ready.emit(), 1000);
       return;
     }
@@ -108,6 +160,15 @@ export class IndexingProgress implements OnInit, OnDestroy {
       { label: 'Summarizing code', key: 'summarizing', status: 'pending' },
       { label: 'Ready', key: 'ready', status: 'pending' },
     ];
+  }
+
+  private updateElapsed(): void {
+    const seconds = Math.floor((Date.now() - this.startTime) / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    this.elapsed = mins > 0
+      ? `${mins}m ${secs.toString().padStart(2, '0')}s`
+      : `${secs}s`;
   }
 
   private updateSteps(currentStatus: string, status: RepoStatus): void {

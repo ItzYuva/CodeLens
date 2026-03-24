@@ -6,9 +6,6 @@ CodeLens AI lets you paste a GitHub repo URL and ask natural language questions 
 
 > Unlike traditional RAG that chunks code into flat pieces and relies on cosine similarity, CodeLens AI understands your codebase *structurally* -- it knows which files contain which classes, which functions call what, and navigates to the right code the way a developer would.
 
-<!--
-![CodeLens AI Demo](screenshots/demo.gif)
--->
 
 ---
 
@@ -21,7 +18,6 @@ CodeLens AI lets you paste a GitHub repo URL and ask natural language questions 
 - **Smart caching** -- Repos indexed once, cached by commit hash
 - **BM25 pre-filtering** -- Keyword matching narrows candidates before tree traversal
 - **Lazy tree traversal** -- Only expands relevant branches, saving tokens and time
-- **Multi-language support** -- Python, JavaScript, TypeScript
 
 ---
 

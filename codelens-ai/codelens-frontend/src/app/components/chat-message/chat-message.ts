@@ -1,8 +1,7 @@
 import {
   Component,
+  DoCheck,
   Input,
-  OnChanges,
-  SimpleChanges,
   ViewEncapsulation,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -27,27 +26,36 @@ const marked = new Marked();
   styleUrl: './chat-message.css',
   encapsulation: ViewEncapsulation.None,
 })
-export class ChatMessageComponent implements OnChanges {
+export class ChatMessageComponent implements DoCheck {
   @Input() message!: ChatMessage;
   @Input() repoUrl = '';
 
   renderedHtml = '';
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['message']) {
+  private lastContent = '';
+
+  ngDoCheck(): void {
+    if (
+      this.message &&
+      this.message.role === 'assistant' &&
+      this.message.content !== this.lastContent
+    ) {
+      this.lastContent = this.message.content;
       this.renderContent();
     }
   }
 
   private renderContent(): void {
-    if (this.message.role === 'user' || !this.message.content) {
+    if (!this.message.content) {
       this.renderedHtml = '';
       return;
     }
     const raw = marked.parse(this.message.content) as string;
     this.renderedHtml = raw;
 
-    // Highlight code blocks after render
-    setTimeout(() => Prism.highlightAll(), 0);
+    // Highlight code blocks after streaming completes
+    if (!this.message.isStreaming) {
+      setTimeout(() => Prism.highlightAll(), 0);
+    }
   }
 }

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { timeout, catchError, throwError } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { IndexingProgress } from '../../components/indexing-progress/indexing-progress';
 import { RepoListItem } from '../../models/types';
@@ -47,22 +48,36 @@ export class Home implements OnInit {
     this.isLoading = true;
     this.errorMessage = '';
 
-    this.api.indexRepo(this.url.trim()).subscribe({
-      next: (res) => {
-        this.isLoading = false;
-        if (res.status === 'ready') {
-          this.router.navigate(['/chat', res.repo_id]);
-        } else {
-          this.indexingRepoId = res.repo_id;
-          this.indexingRepoName = res.name;
-        }
-        this.loadRepos();
-      },
-      error: (err) => {
-        this.isLoading = false;
-        this.errorMessage = err.error?.detail || 'Failed to start indexing';
-      },
-    });
+    this.api
+      .indexRepo(this.url.trim())
+      .pipe(
+        timeout(15_000), // 15s — if backend doesn't respond, don't spin forever
+        catchError((err) => {
+          if (err.name === 'TimeoutError') {
+            return throwError(() => ({
+              error: { detail: 'Backend did not respond in time. Is the server running?' },
+            }));
+          }
+          return throwError(() => err);
+        }),
+      )
+      .subscribe({
+        next: (res) => {
+          this.isLoading = false;
+          if (res.status === 'ready') {
+            this.router.navigate(['/chat', res.repo_id]);
+          } else {
+            // Switch to progress view
+            this.indexingRepoId = res.repo_id;
+            this.indexingRepoName = res.name;
+          }
+          this.loadRepos();
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.errorMessage = err.error?.detail || 'Failed to start indexing';
+        },
+      });
   }
 
   onReady(): void {
@@ -74,7 +89,8 @@ export class Home implements OnInit {
   onCancelled(): void {
     this.indexingRepoId = null;
     this.indexingRepoName = '';
-    this.url = '';
+    // Keep the URL so the user can easily click Analyze again
+    this.isLoading = false;
     this.loadRepos();
   }
 

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -13,6 +15,27 @@ from backend.models.database import (
 from backend.workers.indexing_worker import enqueue_indexing
 
 router = APIRouter(prefix="/api")
+
+# If a repo hasn't been updated in this many seconds while still
+# in an in-progress state, consider it stale / dead and re-queue.
+_STALE_TIMEOUT_SECONDS = 300  # 5 minutes
+
+
+def _is_stale(repo) -> bool:
+    """Return True if the repo's indexing job appears to have died."""
+    if not repo.updated_at:
+        return True
+    try:
+        # Handle both ISO format strings and datetime objects
+        updated = repo.updated_at
+        if isinstance(updated, str):
+            # Strip trailing 'Z' and parse
+            updated = updated.rstrip("Z")
+            updated = datetime.fromisoformat(updated).replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - updated).total_seconds()
+        return age > _STALE_TIMEOUT_SECONDS
+    except Exception:
+        return True  # if we can't parse the date, assume stale
 
 
 class IndexRequest(BaseModel):
@@ -46,6 +69,23 @@ def index_repo(request: IndexRequest):
                 message="Repository already indexed",
             )
         if existing.status in ("queued", "cloning", "parsing", "summarizing"):
+            # Check if the job is stale (thread died, no updates for 5 min)
+            if _is_stale(existing):
+                # Dead job — reset and re-queue
+                update_repo_status(
+                    existing.repo_id, "queued",
+                    error_message=None, progress=0, total_nodes=0,
+                )
+                try:
+                    enqueue_indexing(existing.repo_id, url)
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Failed to enqueue job: {e}")
+                return IndexResponse(
+                    repo_id=existing.repo_id,
+                    name=existing.name,
+                    status="queued",
+                    message="Previous indexing job was stale — re-queued",
+                )
             return IndexResponse(
                 repo_id=existing.repo_id,
                 name=existing.name,

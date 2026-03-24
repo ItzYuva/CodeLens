@@ -2,14 +2,9 @@ import asyncio
 import time
 from typing import AsyncGenerator, Callable, List, Optional
 
-from google import genai
-
-from backend.config import GEMINI_API_KEY, GEMINI_MODEL
+from backend.config import GEMINI_MODEL
+from backend.core.summarizer import _get_client  # reuse singleton client
 from backend.models.schemas import ThinkingStep, TreeNode
-
-
-def _get_client() -> genai.Client:
-    return genai.Client(api_key=GEMINI_API_KEY)
 
 
 def _build_answer_prompt(query: str, nodes: List[TreeNode], repo_name: str) -> str:
@@ -100,17 +95,41 @@ async def generate_answer(
     client = _get_client()
 
     try:
-        stream = await asyncio.to_thread(
-            client.models.generate_content_stream,
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=2000,
-            ),
-        )
-        for chunk in stream:
-            if chunk.text:
-                yield chunk.text
+        from google import genai as _genai
+
+        # Run the entire streaming call + iteration inside a thread so we
+        # never block the async event loop.  Chunks are fed back via an
+        # asyncio.Queue.
+        q: asyncio.Queue[str | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _stream_in_thread() -> None:
+            try:
+                stream = client.models.generate_content_stream(
+                    model=GEMINI_MODEL,
+                    contents=prompt,
+                    config=_genai.types.GenerateContentConfig(
+                        temperature=0.3,
+                        max_output_tokens=2000,
+                    ),
+                )
+                for chunk in stream:
+                    if chunk.text:
+                        loop.call_soon_threadsafe(q.put_nowait, chunk.text)
+            except Exception as exc:
+                loop.call_soon_threadsafe(
+                    q.put_nowait,
+                    f"\n\n**Error:** {exc}",
+                )
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, None)
+
+        loop.run_in_executor(None, _stream_in_thread)
+
+        while True:
+            chunk = await q.get()
+            if chunk is None:
+                break
+            yield chunk
     except Exception:
         yield "I encountered an error generating the answer. Please try again."

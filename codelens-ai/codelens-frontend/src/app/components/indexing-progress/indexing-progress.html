@@ -1,5 +1,8 @@
 <div class="progress-card">
-  <h3 class="progress-title">Analyzing {{ repoName }}...</h3>
+  <div class="progress-header">
+    <h3 class="progress-title">Analyzing {{ repoName }}</h3>
+    <span class="progress-elapsed">{{ elapsed }}</span>
+  </div>
 
   <div class="progress-bar-track">
     <div
@@ -7,7 +10,10 @@
       [style.width.%]="progress"
     ></div>
   </div>
-  <p class="progress-pct">{{ progress }}%</p>
+  <div class="progress-info">
+    <span class="progress-action">{{ currentAction }}</span>
+    <span class="progress-pct">{{ progress }}%</span>
+  </div>
 
   <div class="steps-list">
     @for (step of steps; track step.key) {

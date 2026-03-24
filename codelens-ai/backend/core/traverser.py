@@ -154,24 +154,29 @@ async def traverse_tree(
     top_files = [c for c in tree.children if c.type == "file"]
 
     # STEP 1 -- Directory-level selection
+    # For small repos (≤ 5 top-level dirs), skip the LLM call and scan all dirs
     selected_dirs: List[TreeNode] = []
     if top_dirs:
-        prompt = _build_dir_prompt(query, top_dirs)
-        try:
-            response = await call_gemini(prompt)
-            dir_names = parse_selection(response, [d.name for d in top_dirs])
-        except Exception:
-            # Fallback: pick dirs containing BM25 candidates, or first 3
-            dir_names = []
-            for d in top_dirs:
-                for child in d.children:
-                    if child.path in bm25_paths:
-                        dir_names.append(d.name)
-                        break
-            if not dir_names:
-                dir_names = [d.name for d in top_dirs[:3]]
+        if len(top_dirs) <= 5:
+            # Small repo — just use all directories, no LLM call needed
+            selected_dirs = list(top_dirs)
+        else:
+            prompt = _build_dir_prompt(query, top_dirs)
+            try:
+                response = await call_gemini(prompt)
+                dir_names = parse_selection(response, [d.name for d in top_dirs])
+            except Exception:
+                # Fallback: pick dirs containing BM25 candidates, or first 3
+                dir_names = []
+                for d in top_dirs:
+                    for child in d.children:
+                        if child.path in bm25_paths:
+                            dir_names.append(d.name)
+                            break
+                if not dir_names:
+                    dir_names = [d.name for d in top_dirs[:3]]
+            selected_dirs = [d for d in top_dirs if d.name in dir_names]
 
-        selected_dirs = [d for d in top_dirs if d.name in dir_names]
         if on_thinking:
             for d in selected_dirs:
                 file_count = sum(1 for c in d.children if c.type == "file")
@@ -200,18 +205,22 @@ async def traverse_tree(
     if not candidate_files:
         return []
 
-    prompt = _build_file_prompt(query, candidate_files)
-    try:
-        response = await call_gemini(prompt)
-        file_names = parse_selection(response, [f.name for f in candidate_files])
-    except Exception:
-        # Fallback: use BM25 candidates or first 5
-        if bm25_candidates:
-            file_names = [f.name for f in bm25_candidates[:5]]
-        else:
-            file_names = [f.name for f in candidate_files[:5]]
+    # For small file sets (≤ 8), skip the LLM call and use all files
+    if len(candidate_files) <= 8:
+        selected_files = list(candidate_files)
+    else:
+        prompt = _build_file_prompt(query, candidate_files)
+        try:
+            response = await call_gemini(prompt)
+            file_names = parse_selection(response, [f.name for f in candidate_files])
+        except Exception:
+            # Fallback: use BM25 candidates or first 5
+            if bm25_candidates:
+                file_names = [f.name for f in bm25_candidates[:5]]
+            else:
+                file_names = [f.name for f in candidate_files[:5]]
 
-    selected_files = [f for f in candidate_files if f.name in file_names]
+        selected_files = [f for f in candidate_files if f.name in file_names]
     # Deduplicate by path
     seen_paths = set()
     deduped = []
