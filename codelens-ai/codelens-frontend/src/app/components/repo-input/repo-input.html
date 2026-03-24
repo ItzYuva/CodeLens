@@ -1,0 +1,29 @@
+<div class="input-wrapper">
+  <div class="input-group" [class.focused]="url.length > 0">
+    <input
+      type="text"
+      [(ngModel)]="url"
+      placeholder="https://github.com/user/repo"
+      (keydown.enter)="submit()"
+      [disabled]="isLoading"
+      class="repo-input"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button
+      (click)="submit()"
+      [disabled]="!isValid || isLoading"
+      class="submit-btn"
+    >
+      @if (isLoading) {
+        <span class="spinner"></span>
+      } @else {
+        Analyze
+      }
+    </button>
+  </div>
+
+  @if (url.length > 0 && !isValid) {
+    <p class="validation-hint">Enter a valid GitHub repository URL</p>
+  }
+</div>

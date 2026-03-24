@@ -1,0 +1,20 @@
+.user-bubble {
+  background: var(--color-bg-tertiary);
+  border-radius: 1rem;
+  padding: 0.625rem 1rem;
+  max-width: 80%;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.assistant-message {
+  max-width: 100%;
+}
+
+.streaming-cursor {
+  display: inline;
+  color: var(--color-accent-primary);
+  animation: blink 0.8s step-end infinite;
+  font-weight: 300;
+}

@@ -1,0 +1,66 @@
+<div class="home-container">
+  <div class="home-content">
+    <!-- Hero -->
+    <div class="hero">
+      <h1 class="hero-title">CodeLens AI</h1>
+      <p class="hero-subtitle">Chat with any GitHub repository</p>
+    </div>
+
+    <!-- Input -->
+    @if (!indexingRepoId) {
+      <app-repo-input (submitted)="onSubmit($event)" />
+
+      @if (errorMessage) {
+        <p class="error-message">{{ errorMessage }}</p>
+      }
+
+      <!-- Examples -->
+      <div class="examples-section">
+        <p class="section-divider">or try one of these</p>
+        <div class="example-chips">
+          @for (ex of examples; track ex.url) {
+            <button class="example-chip" (click)="fillExample(ex.url)">
+              {{ ex.name }}
+            </button>
+          }
+        </div>
+      </div>
+    } @else {
+      <!-- Indexing -->
+      <app-indexing-progress
+        [repoId]="indexingRepoId"
+        [repoName]="indexingRepoName"
+        (ready)="onReady()"
+        (cancelled)="onCancelled()"
+      />
+    }
+
+    <!-- Recent repos -->
+    @if (recentRepos.length > 0 && !indexingRepoId) {
+      <div class="recent-section">
+        <p class="section-divider">Recently analyzed</p>
+        <div class="recent-list">
+          @for (repo of recentRepos; track repo.repo_id) {
+            <button
+              class="recent-item"
+              [disabled]="repo.status !== 'ready'"
+              (click)="goToChat(repo.repo_id)"
+            >
+              <span class="recent-name">{{ repo.name }}</span>
+              <span class="recent-status" [class]="'status-' + repo.status">
+                @if (repo.status === 'ready') {
+                  Ready
+                } @else if (repo.status === 'failed') {
+                  Failed
+                } @else {
+                  Indexing...
+                }
+              </span>
+              <span class="recent-time">{{ getTimeAgo(repo.created_at) }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

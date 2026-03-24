@@ -1,0 +1,15 @@
+@if (sources.length > 0) {
+  <div class="sources-container">
+    <span class="sources-label">Sources:</span>
+    @for (source of sources; track source.file_path) {
+      <a
+        class="source-pill"
+        [href]="getGithubUrl(source)"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {{ source.file_path }}
+      </a>
+    }
+  </div>
+}
